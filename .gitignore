@@ -1,0 +1,39 @@
+# Python虚拟环境（必排除）
+venv/
+env/
+*.env  # 排除环境变量文件（敏感信息）
+
+# 数据库相关（本地数据库文件/迁移日志）
+migrations/versions/  # 仅保留迁移框架，排除具体迁移文件（避免冲突）
+*.db
+*.sqlite
+sql/init_db.sql  # 若包含内网数据库账号，可排除；否则可保留
+
+# 日志文件
+logs/
+*.log
+
+# Python编译文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE配置文件（如VSCode、PyCharm）
+.vscode/
+.idea/
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 操作系统文件
+.DS_Store  # Mac
+Thumbs.db  # Windows
+
+# 其他冗余文件
+dist/
+build/
+*.egg-info/
