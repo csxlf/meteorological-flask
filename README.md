@@ -35,11 +35,3 @@
 - 依赖包：见`requirements.txt`
 - 本地资源：需提前下载Bootstrap、OpenLayers等静态资源（见“部署步骤-3”）
 
-
-## 🚀 部署步骤
-### 1. 克隆仓库
-```bash
-# 克隆GitHub仓库
-git clone https://github.com/YourUsername/meteorological-flask-system.git
-# 进入项目目录
-cd meteorological-flask-system
