@@ -14,8 +14,9 @@ def weather_query():
     current_time = datetime.now().strftime('%Y-%m-%d %H:00:00')
 
     # 加载地区边界JSON
-    with open('app/static/json/china_regions.json', 'r', encoding='utf-8') as f:
+    with open('app/static/json/sc.json', 'r', encoding='utf-8') as f:
         regions_json = json.load(f)
+    print("边界数据是否加载成功：", len(regions_json.get('features', [])) > 0)
 
     return render_template('weather/query.html',
                            default_region=default_region,
