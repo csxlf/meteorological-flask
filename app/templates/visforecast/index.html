@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>能见度预报模型管理</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">预报模型管理系统</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('visforecast.index') }}">模型管理</a>
+                    </li>
+                </ul>
+                <a href="{{ url_for('task.logout') }}" class="btn btn-outline-light">退出登录</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>能见度预报模型列表</h5>
+                <div>
+                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modelModal" onclick="resetModelForm()">
+                        添加模型
+                    </button>
+                    <button type="button" class="btn btn-sm btn-success" id="syncModelBtn">
+                        同步模型
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>模型ID</th>
+                                <th>模型编码</th>
+                                <th>模型版本号</th>
+                                <th>模型名称</th>
+                                <th>是否启用</th>
+                                <th>最近运行时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modelTableBody">
+                            {% for model in models %}
+                            <tr>
+                                <td>{{ model.PK }}</td>
+                                <td>{{ model.model_ECD }}</td>
+                                <td>{{ model.model_NO }}</td>
+                                <td>{{ model.model_NAME }}</td>
+                                <td>{{ '是' if model.WTH_BEON_USE_ECD == 1 else '否' }}</td>
+                                <td>{{ model.ATLST_RUN_TM.strftime('%Y-%m-%d') if model.ATLST_RUN_TM else '-' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editModel('{{ model.PK }}')">编辑</button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteModel('{{ model.PK }}')">删除</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模型模态框 -->
+    <div class="modal fade" id="modelModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modelModalTitle">添加模型</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="modelForm">
+                        <input type="hidden" id="modelPk">
+                        <div class="mb-3">
+                            <label for="modelEcd" class="form-label">模型编码 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="modelEcd" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="modelNo" class="form-label">模型版本号</label>
+                            <input type="number" class="form-control" id="modelNo" min="1">
+                        </div>
+                        <div class="mb-3">
+                            <label for="modelName" class="form-label">模型名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="modelName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="wthBeonUseEcd" class="form-label">是否启用</label>
+                            <select class="form-select" id="wthBeonUseEcd">
+                                <option value="1">是</option>
+                                <option value="0">否</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="atlstRunTm" class="form-label">最近运行时间</label>
+                            <input type="date" class="form-control" id="atlstRunTm">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveModelBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/jquery-3.6.4.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    <script>
+        // 重置模型表单
+        function resetModelForm() {
+            $('#modelForm')[0].reset();
+            $('#modelPk').val('');
+            $('#modelModalTitle').text('添加模型');
+        }
+
+        // 编辑模型
+        function editModel(pk) {
+            const row = $(`#modelTableBody tr:contains('${pk}')`);
+            const modelEcd = row.find('td:eq(1)').text();
+            const modelNo = row.find('td:eq(2)').text();
+            const modelName = row.find('td:eq(3)').text();
+            const wthBeonUseEcd = row.find('td:eq(4)').text() === '是' ? 1 : 0;
+            const atlstRunTm = row.find('td:eq(5)').text() || '';
+
+            // 填充表单
+            $('#modelPk').val(pk);
+            $('#modelEcd').val(modelEcd);
+            $('#modelNo').val(modelNo);
+            $('#modelName').val(modelName);
+            $('#wthBeonUseEcd').val(wthBeonUseEcd);
+            $('#atlstRunTm').val(atlstRunTm);
+            $('#modelModalTitle').text('编辑模型');
+
+            // 显示模态框
+            new bootstrap.Modal(document.getElementById('modelModal')).show();
+        }
+
+        // 保存模型
+        $('#saveModelBtn').click(function() {
+            const data = {
+                model_ecd: $('#modelEcd').val(),
+                model_no: $('#modelNo').val() || null,
+                model_name: $('#modelName').val(),
+                wth_beon_use_ecd: $('#wthBeonUseEcd').val(),
+                atlst_run_tm: $('#atlstRunTm').val()
+            };
+
+            const pk = $('#modelPk').val();
+            const url = pk ? '/visforecast/model/edit' : '/visforecast/model/add';
+            if (pk) data.pk = pk;
+
+            $.ajax({
+                url: url,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function(res) {
+                    if (res.success) {
+                        location.reload();
+                    } else {
+                        alert(res.msg || '操作失败');
+                    }
+                },
+                error: function() {
+                    alert('网络错误');
+                }
+            });
+        });
+
+        // 删除模型
+        function deleteModel(pk) {
+            if (confirm('确定要删除该模型吗？')) {
+                $.post(`/visforecast/model/delete/${pk}`, function(res) {
+                    if (res.success) {
+                        location.reload();
+                    } else {
+                        alert(res.msg || '删除失败');
+                    }
+                });
+            }
+        }
+
+        // 同步模型
+        $('#syncModelBtn').click(function() {
+            $(this).prop('disabled', true).text('同步中...');
+            $.post('/visforecast/model/sync', function(res) {
+                alert(res.msg);
+                if (res.success) {
+                    location.reload();
+                } else {
+                    $('#syncModelBtn').prop('disabled', false).text('同步模型');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

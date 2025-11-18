@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>实况数据监测</title>
+    <!-- 离线静态资源 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <style>
+        .threshold-group {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .alert-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 阈值配置区域 -->
+            <div class="col-md-3 bg-light p-3">
+                <h5>监测阈值配置</h5>
+
+                <!-- 气温阈值 -->
+                <div class="threshold-group">
+                    <h6>气温(℃)</h6>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">最小值</label>
+                            <input type="number" id="tempMin" class="form-control" step="0.1" value="-10">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">最大值</label>
+                            <input type="number" id="tempMax" class="form-control" step="0.1" value="40">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 降水阈值 -->
+                <div class="threshold-group">
+                    <h6>降水(mm)</h6>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label">最小值（≥触发）</label>
+                            <input type="number" id="rainMin" class="form-control" step="0.1" value="10">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 能见度阈值 -->
+                <div class="threshold-group">
+                    <h6>能见度(km)</h6>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label">最大值（≤触发）</label>
+                            <input type="number" id="visMax" class="form-control" step="0.1" value="1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 风速阈值 -->
+                <div class="threshold-group">
+                    <h6>风速(m/s)</h6>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label">最小值（≥触发）</label>
+                            <input type="number" id="wspeedMin" class="form-control" step="0.1" value="10">
+                        </div>
+                    </div>
+                </div>
+
+                <button id="applyThreshold" class="btn btn-primary w-100">应用阈值</button>
+                <button id="refreshData" class="btn btn-secondary w-100 mt-2">刷新数据</button>
+
+                <!-- 告警统计 -->
+                <div class="mt-4 p-3 bg-warning bg-opacity-20 rounded">
+                    <h6>当前告警统计</h6>
+                    <div class="d-flex justify-content-between">
+                        <span>气温异常：<span id="tempAlertCount">0</span></span>
+                        <span>降水异常：<span id="rainAlertCount">0</span></span>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <span>能见度低：<span id="visAlertCount">0</span></span>
+                        <span>大风告警：<span id="wspeedAlertCount">0</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 地图展示区域 -->
+            <div class="col-md-9 position-relative">
+                <div id="map" style="height: 800px;"></div>
+
+                <!-- 告警提示 -->
+                <div id="alertNotification" class="alert-badge alert alert-danger d-none">
+                    <strong>新告警!</strong> <span id="alertMessage"></span>
+                </div>
+
+                <!-- 图层控制 -->
+                <div class="position-absolute bottom-20 right-10 z-10 bg-white p-2 rounded shadow">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showTemp" checked>
+                        <label class="form-check-label" for="showTemp">气温异常</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showRain" checked>
+                        <label class="form-check-label" for="showRain">降水异常</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showVis" checked>
+                        <label class="form-check-label" for="showVis">能见度低</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showWspeed" checked>
+                        <label class="form-check-label" for="showWspeed">大风</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 离线JS资源 -->
+    <script src="{{ url_for('static', filename='js/jquery-3.6.4.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+    <script>
+        // 初始化地图
+        const map = L.map('map').setView([30.65, 104.06], 8); // 四川区域默认视角
+
+        // 加载内网地图服务
+        L.tileLayer('http://localhost:8080/styles/OSM%20OpenMapTiles/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© 气象监测系统'
+        }).addTo(map);
+
+        // 加载地区边界
+        const regionsGeoJson = {{ regions_json|safe }};
+        L.geoJSON(regionsGeoJson, {
+            style: {
+                color: '#666',
+                weight: 1.5,
+                opacity: 0.6,
+                fillOpacity: 0
+            }
+        }).addTo(map);
+
+        // 告警图层
+        const alertLayers = {
+            temp: L.layerGroup().addTo(map),    // 气温异常（红色）
+            rain: L.layerGroup().addTo(map),    // 降水异常（蓝色）
+            vis: L.layerGroup().addTo(map),     // 能见度低（黄色）
+            wspeed: L.layerGroup().addTo(map)   // 大风（紫色）
+        };
+
+        // 图层样式配置
+        const alertStyles = {
+            temp: { radius: 8, color: 'red', fillColor: 'red', fillOpacity: 0.6 },
+            rain: { radius: 8, color: 'blue', fillColor: 'blue', fillOpacity: 0.6 },
+            vis: { radius: 8, color: 'orange', fillColor: 'orange', fillOpacity: 0.6 },
+            wspeed: { radius: 8, color: 'purple', fillColor: 'purple', fillOpacity: 0.6 }
+        };
+
+        // 初始加载数据
+        loadMonitorData();
+
+        // 定时刷新（5分钟一次）
+        setInterval(loadMonitorData, 300000);
+
+        // 应用阈值按钮事件
+        $('#applyThreshold').click(loadMonitorData);
+
+        // 刷新数据按钮事件
+        $('#refreshData').click(loadMonitorData);
+
+        // 图层显示控制
+        $('#showTemp').change(function() {
+            alertLayers.temp.setVisible($(this).prop('checked'));
+        });
+        $('#showRain').change(function() {
+            alertLayers.rain.setVisible($(this).prop('checked'));
+        });
+        $('#showVis').change(function() {
+            alertLayers.vis.setVisible($(this).prop('checked'));
+        });
+        $('#showWspeed').change(function() {
+            alertLayers.wspeed.setVisible($(this).prop('checked'));
+        });
+
+        // 加载监测数据
+        function loadMonitorData() {
+            // 获取阈值参数
+            const params = {
+                temp_min: $('#tempMin').val(),
+                temp_max: $('#tempMax').val(),
+                rain_min: $('#rainMin').val(),
+                vis_max: $('#visMax').val(),
+                wspeed_min: $('#wspeedMin').val()
+            };
+
+            $.get('/monitor/get_monitor_data', params, function(data) {
+                // 清空所有图层
+                Object.values(alertLayers).forEach(layer => layer.clearLayers());
+
+                // 添加气温异常点
+                addAlertMarkers(data.temp, 'temp', '气温异常');
+                // 添加降水异常点
+                addAlertMarkers(data.rain, 'rain', '降水异常');
+                // 添加能见度低异常点
+                addAlertMarkers(data.vis, 'vis', '能见度低');
+                // 添加大风异常点
+                addAlertMarkers(data.wspeed, 'wspeed', '大风');
+
+                // 更新告警统计
+                updateAlertCounts(data);
+
+                // 检查是否有新告警
+                checkNewAlerts(data);
+            });
+        }
+
+        // 添加告警标记
+        function addAlertMarkers(alertData, type, title) {
+            alertData.forEach(item => {
+                L.circleMarker([item.lat, item.lon], alertStyles[type])
+                    .bindPopup(`<b>${item.staname}</b><br>${title}: ${item.value}`)
+                    .addTo(alertLayers[type]);
+            });
+        }
+
+        // 更新告警统计
+        function updateAlertCounts(data) {
+            $('#tempAlertCount').text(data.temp.length);
+            $('#rainAlertCount').text(data.rain.length);
+            $('#visAlertCount').text(data.vis.length);
+            $('#wspeedAlertCount').text(data.wspeed.length);
+        }
+
+        // 检查新告警并显示提示
+        function checkNewAlerts(data) {
+            const totalAlerts = Object.values(data).reduce((sum, arr) => sum + arr.length, 0);
+            if (totalAlerts > 0) {
+                $('#alertMessage').text(`共${totalAlerts}个异常点，请查看`);
+                $('#alertNotification').removeClass('d-none');
+                // 3秒后自动隐藏提示
+                setTimeout(() => {
+                    $('#alertNotification').addClass('d-none');
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,22 +1,31 @@
-# app/config.py
 import os
 from datetime import timedelta
-from dotenv import load_dotenv  # 新增：加载.env文件
-
-# 加载.env环境变量
-load_dotenv()
 
 
 class Config:
-    # 从.env读取密钥（不再硬编码）
-    SECRET_KEY = os.getenv('SECRET_KEY') or 'fallback_hard_to_guess_string'
-
-    # 从.env读取MySQL配置（避免密码泄露）
-    SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{os.getenv('MYSQL_USER')}:{os.getenv('MYSQL_PASSWORD')}@{os.getenv('MYSQL_HOST')}/{os.getenv('MYSQL_DB')}"
+    # 数据库配置
+    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456aA&@localhost:3306/meteo'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # 静态资源缓存控制
-    SEND_FILE_MAX_AGE_DEFAULT = timedelta(seconds=0)
+    # 密钥配置（用于会话加密）
+    SECRET_KEY = os.urandom(24)
 
-    # 从.env读取地图服务地址
-    MAP_SERVICE_URL = os.getenv('MAP_SERVICE_URL')
+    # 登录配置
+    REMEMBER_COOKIE_DURATION = timedelta(hours=2)
+
+    # 静态资源路径配置
+    STATIC_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+    TEMPLATE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+
+    # 地图服务配置
+    MAP_SERVICE_URL = 'http://localhost:8080/styles/OSM%20OpenMapTiles/#4/35.66/103.67'
+
+    # 地区列表配置
+    REGIONS = [
+        '四川', '成都', '自贡', '攀枝花', '泸州', '德阳', '绵阳', '广元',
+        '遂宁', '内江', '乐山', '南充', '眉山', '宜宾', '广安', '达州',
+        '雅安', '巴中', '资阳', '阿坝州', '甘孜州', '凉山州'
+    ]
+
+    # 默认地区（成都）
+    DEFAULT_REGION = '成都'

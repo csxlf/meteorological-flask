@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>任务管理 - 任务状态</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <style>
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+        .status-1 { background-color: #c3e6cb; color: #155724; } /* 运行中 */
+        .status-2 { background-color: #d1ecf1; color: #0c5460; } /* 已完成 */
+        .status-3 { background-color: #f8d7da; color: #721c24; } /* 失败 */
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">任务管理系统</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('task.index') }}">任务配置</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('task.status') }}">任务状态</a>
+                    </li>
+                </ul>
+                <a href="{{ url_for('task.logout') }}" class="btn btn-outline-light">退出登录</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 任务状态 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>任务运行状态</h5>
+                <button class="btn btn-sm btn-secondary" onclick="location.reload()">刷新状态</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>状态ID</th>
+                                <th>任务ID</th>
+                                <th>作业ID</th>
+                                <th>批次时间</th>
+                                <th>状态</th>
+                                <th>开始时间</th>
+                                <th>结束时间</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for status in task_status %}
+                            <tr>
+                                <td>{{ status.PK }}</td>
+                                <td>{{ status.TS_TASKINFO_PK }}</td>
+                                <td>{{ status.TS_JOBCONFIG_PK }}</td>
+                                <td>{{ status.BATCH_TM.strftime('%Y-%m-%d %H:%M:%S') if status.BATCH_TM else '-' }}</td>
+                                <td>
+                                    <span class="status-badge status-{{ status.STATUS_ECD }}">
+                                        {% if status.STATUS_ECD == 1 %}运行中
+                                        {% elif status.STATUS_ECD == 2 %}已完成
+                                        {% else %}失败{% endif %}
+                                    </span>
+                                </td>
+                                <td>{{ status.START_TM.strftime('%Y-%m-%d %H:%M:%S') if status.START_TM else '-' }}</td>
+                                <td>{{ status.END_TM.strftime('%Y-%m-%d %H:%M:%S') if status.END_TM else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 作业日志 -->
+        <div class="card">
+            <div class="card-header">
+                <h5>作业运行日志</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>日志ID</th>
+                                <th>日志时间</th>
+                                <th>事件编码</th>
+                                <th>日志信息</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td>{{ log.PK }}</td>
+                                <td>{{ log.LOG_TM.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                <td>{{ log.EVENT_CD }}</td>
+                                <td>{{ log.MSG_DESC }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/jquery-3.6.4.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    <script>
+        // 定时刷新（30秒一次）
+        setInterval(() => {
+            $.get('/task/status', function(html) {
+                // 仅刷新表格内容（简化实现）
+                const newTaskStatus = $(html).find('#taskStatusTable tbody').html();
+                const newLogs = $(html).find('#logTable tbody').html();
+                $('#taskStatusTable tbody').html(newTaskStatus);
+                $('#logTable tbody').html(newLogs);
+            });
+        }, 30000);
+    </script>
+</body>
+</html>

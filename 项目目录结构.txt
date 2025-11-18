@@ -1,0 +1,25 @@
+meteorological-flask-system/
+├── app/                      # 核心应用目录
+│   ├── __init__.py           # Flask应用初始化
+│   ├── config.py             # 配置文件（读取.env）
+│   ├── models/               # 数据模型（ORM）
+│   │   ├── weather.py        # 气象数据模型（obs_data/sta_info/area）
+│   │   ├── task.py           # 任务管理模型（TS_TASKINFO等）
+│   │   └── forecast.py       # 预报模型模型（METEO_FORECAST_MODEL）
+│   ├── routes/               # 路由处理
+│   │   ├── auth.py           # 登录认证路由
+│   │   ├── weather.py        # 气象实况查询路由
+│   │   ├── task.py           # 后台任务管理路由
+│   │   └── forecast.py       # 预报模型管理路由
+│   ├── static/               # 静态资源（本地加载）
+│   │   ├── css/、js/、json/、map/  # 资源目录
+│   └── templates/            # HTML模板
+│       ├── base.html         # 基础模板
+│       ├── weather/、task/、forecast/  # 模块模板
+├── sql/                      # 数据库初始化脚本
+│   └── init_db.sql           # 建库建表脚本
+├── .env.example              # 环境变量示例（无敏感信息，可上传）
+├── .gitignore                # Git忽略文件配置
+├── requirements.txt          # 依赖包列表
+├── run.py                    # 项目启动入口
+└── README.md                 # 项目说明（本文件）

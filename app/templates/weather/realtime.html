@@ -1,255 +1,347 @@
-{% extends "base.html" %}
-
-{% block title %}气象实况数据查询{% endblock %}
-
-{% block css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/ol.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/datetimepicker.min.css') }}">
-<style>
-    .container { margin-top: 20px; }
-    #map { height: 500px; width: 100%; }
-    .time-axis { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
-    .option-area { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
-    .table-area { max-height: 300px; overflow-y: auto; }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="container">
-    <!-- 选项区域（2号区域） -->
-    <div class="option-area">
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>气象实况数据查询</title>
+    <!-- 离线静态资源 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+<body>
+    <div class="container-fluid">
         <div class="row">
-            <div class="col-md-4">
-                <label for="area-select">地区：</label>
-                <select id="area-select" class="form-select">
-                    {% for area in areas %}
-                    <option value="{{ area.areacode }}" {% if area.areaname == '成都' %}selected{% endif %}>
-                        {{ area.areaname }}
-                    </option>
-                    {% endfor %}
-                </select>
+            <!-- 选项区域（2号区域） -->
+            <div class="col-md-2 bg-light p-3">
+                <h5>查询选项</h5>
+                <!-- 地区选择 -->
+                <div class="mb-3">
+                    <label class="form-label">地区</label>
+                    <select id="regionSelect" class="form-select">
+                        {% for region in config.REGIONS %}
+                        <option value="{{ region }}" {% if region == default_region %}selected{% endif %}>{{ region }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 时间选择 -->
+                <div class="mb-3">
+                    <label class="form-label">时间</label>
+                    <input type="datetime-local" id="timeSelect" class="form-control"
+                           value="{{ current_time.replace(' ', 'T').replace(':00:00', ':00') }}">
+                </div>
+
+                <!-- 要素选择 -->
+                <div class="mb-3">
+                    <label class="form-label">要素</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="temp" checked>
+                        <label class="form-check-label" for="temp">气温</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="rain" checked>
+                        <label class="form-check-label" for="rain">降水</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="rh" checked>
+                        <label class="form-check-label" for="rh">湿度</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="press" checked>
+                        <label class="form-check-label" for="press">气压</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="wind" checked>
+                        <label class="form-check-label" for="wind">风</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="vis" checked>
+                        <label class="form-check-label" for="vis">能见度</label>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-4">
-                <label for="time-select">时间：</label>
-                <input type="text" id="time-select" class="form-control" value="{{ current_time }}">
-            </div>
-            <div class="col-md-4">
-                <label>要素：</label>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" id="temp" value="temp" checked>
-                    <label class="form-check-label" for="temp">气温</label>
+
+            <!-- 地图区域（1号区域） -->
+            <div class="col-md-10">
+                <div id="map" style="height: 600px;"></div>
+
+                <!-- 时间轴 -->
+                <div class="mt-3">
+                    <input type="range" id="timeSlider" class="form-range w-100" min="0" max="4" value="2">
+                    <div class="d-flex justify-content-between w-100">
+                        <span id="timeMinus2">-2小时</span>
+                        <span id="timeMinus1">-1小时</span>
+                        <span id="timeCurrent">当前</span>
+                        <span id="timePlus1">+1小时</span>
+                        <span id="timePlus2">+2小时</span>
+                    </div>
                 </div>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" id="rain" value="rain" checked>
-                    <label class="form-check-label" for="rain">降水</label>
-                </div>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" id="rh" value="rh" checked>
-                    <label class="form-check-label" for="rh">湿度</label>
-                </div>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" id="press" value="press" checked>
-                    <label class="form-check-label" for="press">气压</label>
-                </div>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" id="wind" value="wind" checked>
-                    <label class="form-check-label" for="wind">风</label>
-                </div>
-                <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" id="vis" value="vis" checked>
-                    <label class="form-check-label" for="vis">能见度</label>
+
+                <!-- 表格数据区域（3号区域） -->
+                <div class="mt-4">
+                    <h5>站点观测数据</h5>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>站点编码</th>
+                                    <th>站点名称</th>
+                                    <th>气温(℃)</th>
+                                    <th>降水(mm)</th>
+                                    <th>气压(hPa)</th>
+                                    <th>能见度(km)</th>
+                                    <th>风速(m/s)</th>
+                                    <th>风向(°)</th>
+                                    <th>湿度(%)</th>
+                                    <th>露点温度(℃)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody">
+                                <!-- 数据将通过JS动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 地图区域（1号区域） -->
-    <div id="map"></div>
-    <!-- 时间轴 -->
-    <div class="time-axis" id="time-axis">
-        <button class="btn btn-sm btn-outline-primary" id="prev-hour">← 上一小时</button>
-        <span id="current-time-display">{{ current_time }}</span>
-        <button class="btn btn-sm btn-outline-primary" id="next-hour">下一小时 →</button>
-    </div>
+    <!-- 离线JS资源 -->
+    <script src="{{ url_for('static', filename='js/jquery-3.6.4.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+    <script>
+        // 初始化地图
+        const map = L.map('map').setView([30.659462, 104.065735], 10); // 成都默认坐标
 
-    <!-- 表格数据区域（3号区域） -->
-    <div class="table-area">
-        <table class="table table-striped table-hover">
-            <thead>
-                <tr>
-                    <th>站点编码</th>
-                    <th>站点名称</th>
-                    <th>气温(℃)</th>
-                    <th>降水(mm)</th>
-                    <th>湿度(%)</th>
-                    <th>气压(hPa)</th>
-                    <th>风速(m/s)</th>
-                    <th>风向(°)</th>
-                    <th>能见度(km)</th>
-                </tr>
-            </thead>
-            <tbody id="obs-table-body"></tbody>
-        </table>
-    </div>
-</div>
-{% endblock %}
+        // 加载内网地图服务
+        L.tileLayer('http://localhost:8080/styles/OSM%20OpenMapTiles/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© OpenMapTiles'
+        }).addTo(map);
 
-{% block js %}
-<script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/ol.js') }}"></script>
-<script src="{{ url_for('static', filename='js/datetimepicker.min.js') }}"></script>
-<script>
-    // 初始化时间选择器
-    $('#time-select').datetimepicker({
-        format: 'Y-m-d H:i',
-        step: 60,
-        minutesStep: 60,
-        timepicker: true,
-        datepicker: true,
-        defaultTime: '{{ current_time.split(" ")[1] }}'
-    });
+        // 加载地区边界
+        const regionsGeoJson = {{ regions_json|safe }};
+        const regionLayer = L.geoJSON(regionsGeoJson, {
+            style: function(feature) {
+                return {
+                    color: 'red',
+                    weight: 2,
+                    opacity: 0.7,
+                    fillOpacity: 0.1
+                };
+            },
+            filter: function(feature) {
+                // 默认显示成都边界
+                return feature.properties.name === '{{ default_region }}';
+            }
+        }).addTo(map);
 
-    // 初始化地图
-    const map = new ol.Map({
-        target: 'map',
-        layers: [
-            new ol.layer.Tile({
-                source: new ol.source.XYZ({
-                    url: '{{ map_service_url }}/{z}/{x}/{y}.png'
-                })
-            })
-        ],
-        view: new ol.View({
-            center: ol.proj.fromLonLat([104.065735, 30.659462]), // 成都中心点
-            zoom: 8
-        })
-    });
+        // 站点图层和要素图层
+        let stationLayer = L.layerGroup().addTo(map);
+        let tempLayer = L.layerGroup().addTo(map);
+        let rainLayer = L.layerGroup().addTo(map);
+        let rhLayer = L.layerGroup().addTo(map);
+        let pressLayer = L.layerGroup().addTo(map);
+        let windLayer = L.layerGroup().addTo(map);
+        let visLayer = L.layerGroup().addTo(map);
 
-    // 地区边界层
-    let boundaryLayer = new ol.layer.Vector({
-        source: new ol.source.Vector(),
-        style: new ol.style.Style({
-            stroke: new ol.style.Stroke({ color: '#ff0000', width: 2 }),
-            fill: new ol.style.Fill({ color: 'rgba(255, 0, 0, 0.1)' })
-        })
-    });
-    map.addLayer(boundaryLayer);
+        // 时间处理
+        let currentDateTime = new Date('{{ current_time }}');
+        updateTimeAxis(currentDateTime);
 
-    // 站点数据层（所有要素共用）
-    let stationLayer = new ol.layer.Vector({
-        source: new ol.source.Vector(),
-        style: function(feature) {
-            const data = feature.get('data') || {};
-            return new ol.style.Style({
-                image: new ol.style.Circle({
-                    radius: 6,
-                    fill: new ol.style.Fill({ color: '#0066cc' }),
-                    stroke: new ol.style.Stroke({ color: '#fff', width: 1 })
-                }),
-                text: new ol.style.Text({
-                    text: feature.get('staname'),
-                    offsetY: 15,
-                    font: '12px sans-serif',
-                    fill: new ol.style.Fill({ color: '#333' })
-                })
+        // 加载初始数据
+        loadStations();
+        loadObsData(currentDateTime);
+        loadTableData(currentDateTime);
+
+        // 地区选择事件
+        $('#regionSelect').change(function() {
+            const selectedRegion = $(this).val();
+            // 过滤边界显示
+            regionLayer.setFilter(function(feature) {
+                return feature.properties.name === selectedRegion;
             });
-        }
-    });
-    map.addLayer(stationLayer);
-
-    // 加载地区边界
-    function loadAreaBoundary(areaName) {
-        $.get('/weather/api/get_area_boundary', { area_name: areaName }, function(geometry) {
-            const format = new ol.format.GeoJSON();
-            const features = format.readFeatures({
-                type: 'Feature',
-                geometry: geometry
-            });
-            boundaryLayer.setSource(new ol.source.Vector({ features: features }));
-            // 自适应地图范围
-            const extent = boundaryLayer.getSource().getExtent();
-            map.getView().fit(extent, { padding: [50, 50, 50, 50] });
-        });
-    }
-
-    // 加载实况数据
-    function loadObsData() {
-        const areaCode = $('#area-select').val();
-        const obsTime = $('#time-select').val();
-        const elements = [];
-        $('.form-check-input:checked').each(function() {
-            elements.push($(this).val());
+            // 调整地图视野
+            const regionFeature = regionsGeoJson.features.find(f => f.properties.name === selectedRegion);
+            if (regionFeature) {
+                map.fitBounds(L.geoJSON(regionFeature).getBounds());
+            }
         });
 
-        $.get('/weather/api/get_obs_data', {
-            area_code: areaCode,
-            obs_time: obsTime,
-            elements: elements
-        }, function(data) {
-            // 更新站点图层
-            const features = data.map(item => {
-                const point = new ol.geom.Point(ol.proj.fromLonLat([item.lon, item.lat]));
-                return new ol.Feature({
-                    geometry: point,
-                    sta: item.sta,
-                    staname: item.staname,
-                    data: item.data
+        // 时间选择事件
+        $('#timeSelect').change(function() {
+            currentDateTime = new Date($(this).val());
+            updateTimeAxis(currentDateTime);
+            loadObsData(currentDateTime);
+            loadTableData(currentDateTime);
+        });
+
+        // 时间轴滑块事件
+        $('#timeSlider').on('input', function() {
+            const offset = parseInt($(this).val()) - 2; // -2, -1, 0, 1, 2
+            const selectedTime = new Date(currentDateTime);
+            selectedTime.setHours(selectedTime.getHours() + offset);
+            // 更新时间选择框
+            $('#timeSelect').val(formatDateTime(selectedTime));
+            // 加载对应时间数据
+            loadObsData(selectedTime);
+            loadTableData(selectedTime);
+        });
+
+        // 要素选择事件
+        $('.form-check-input').change(function() {
+            const id = $(this).attr('id');
+            const isChecked = $(this).prop('checked');
+            switch(id) {
+                case 'temp': tempLayer.setVisible(isChecked); break;
+                case 'rain': rainLayer.setVisible(isChecked); break;
+                case 'rh': rhLayer.setVisible(isChecked); break;
+                case 'press': pressLayer.setVisible(isChecked); break;
+                case 'wind': windLayer.setVisible(isChecked); break;
+                case 'vis': visLayer.setVisible(isChecked); break;
+            }
+        });
+
+        // 加载站点数据
+        function loadStations() {
+            $.get('/weather/get_stations', { region: $('#regionSelect').val() }, function(data) {
+                stationLayer.clearLayers();
+                data.forEach(station => {
+                    L.marker([station.lat, station.lon])
+                        .bindPopup(`<b>${station.staname}</b><br>编码: ${station.sta}`)
+                        .addTo(stationLayer);
                 });
             });
-            stationLayer.setSource(new ol.source.Vector({ features: features }));
+        }
 
-            // 更新表格数据
-            const tableBody = $('#obs-table-body');
-            tableBody.empty();
-            data.forEach(item => {
-                const row = `<tr>
-                    <td>${item.sta}</td>
-                    <td>${item.staname}</td>
-                    <td>${item.data.temp || '-'}</td>
-                    <td>${item.data.rain || '-'}</td>
-                    <td>${item.data.rh || '-'}</td>
-                    <td>${item.data.press || '-'}</td>
-                    <td>${item.data.wspeed || '-'}</td>
-                    <td>${item.data.wdirection || '-'}</td>
-                    <td>${item.data.vis || '-'}</td>
-                </tr>`;
-                tableBody.append(row);
+        // 加载观测数据
+        function loadObsData(time) {
+            const elements = [];
+            $('.form-check-input:checked').each(function() {
+                const id = $(this).attr('id');
+                if (id === 'wind') {
+                    elements.push('wspeed', 'wdirection');
+                } else {
+                    elements.push(id);
+                }
             });
 
-            // 更新时间轴显示
-            $('#current-time-display').text(obsTime);
-        });
-    }
+            $.get('/weather/get_obs_data', {
+                time: formatDateTime(time, 'yyyy-MM-dd HH:00:00'),
+                elements: elements
+            }, function(data) {
+                // 清空要素图层
+                tempLayer.clearLayers();
+                rainLayer.clearLayers();
+                rhLayer.clearLayers();
+                pressLayer.clearLayers();
+                windLayer.clearLayers();
+                visLayer.clearLayers();
 
-    // 事件绑定
-    $('#area-select').change(function() {
-        const areaName = $(this).find('option:selected').text();
-        loadAreaBoundary(areaName);
-        loadObsData();
-    });
+                data.forEach(item => {
+                    const lat = item.lat || data.sta_info?.lat;
+                    const lon = item.lon || data.sta_info?.lon;
+                    if (!lat || !lon) return;
 
-    $('#time-select').change(loadObsData);
+                    // 气温要素
+                    if (item.temp !== undefined) {
+                        L.circleMarker([lat, lon], { radius: 6, color: 'red' })
+                            .bindPopup(`<b>${item.staname}</b><br>气温: ${item.temp}℃`)
+                            .addTo(tempLayer);
+                    }
 
-    $('.form-check-input').change(loadObsData);
+                    // 降水要素
+                    if (item.rain !== undefined) {
+                        L.circleMarker([lat, lon], { radius: 6, color: 'blue' })
+                            .bindPopup(`<b>${item.staname}</b><br>降水: ${item.rain}mm`)
+                            .addTo(rainLayer);
+                    }
 
-    $('#prev-hour, #next-hour').click(function() {
-        const currentTime = new Date($('#time-select').val());
-        if ($(this).attr('id') === 'prev-hour') {
-            currentTime.setHours(currentTime.getHours() - 1);
-        } else {
-            currentTime.setHours(currentTime.getHours() + 1);
+                    // 湿度要素
+                    if (item.rh !== undefined) {
+                        L.circleMarker([lat, lon], { radius: 6, color: 'green' })
+                            .bindPopup(`<b>${item.staname}</b><br>湿度: ${item.rh}%`)
+                            .addTo(rhLayer);
+                    }
+
+                    // 气压要素
+                    if (item.press !== undefined) {
+                        L.circleMarker([lat, lon], { radius: 6, color: 'orange' })
+                            .bindPopup(`<b>${item.staname}</b><br>气压: ${item.press}hPa`)
+                            .addTo(pressLayer);
+                    }
+
+                    // 风要素
+                    if (item.wspeed !== undefined && item.wdirection !== undefined) {
+                        L.circleMarker([lat, lon], { radius: 6, color: 'purple' })
+                            .bindPopup(`<b>${item.staname}</b><br>风速: ${item.wspeed}m/s<br>风向: ${item.wdirection}°`)
+                            .addTo(windLayer);
+                    }
+
+                    // 能见度要素
+                    if (item.vis !== undefined) {
+                        L.circleMarker([lat, lon], { radius: 6, color: 'brown' })
+                            .bindPopup(`<b>${item.staname}</b><br>能见度: ${item.vis}km`)
+                            .addTo(visLayer);
+                    }
+                });
+            });
         }
-        const newTime = `${currentTime.getFullYear()}-${(currentTime.getMonth()+1).toString().padStart(2, '0')}-${currentTime.getDate().toString().padStart(2, '0')} ${currentTime.getHours().toString().padStart(2, '0')}:00`;
-        $('#time-select').val(newTime);
-        loadObsData();
-    });
 
-    // 初始化加载
-    $(document).ready(function() {
-        loadAreaBoundary('成都');
-        loadObsData();
-    });
-</script>
-{% endblock %}
+        // 加载表格数据
+        function loadTableData(time) {
+            $.get('/weather/get_table_data', { time: formatDateTime(time, 'yyyy-MM-dd HH:00:00') }, function(data) {
+                const tableBody = $('#dataTableBody');
+                tableBody.empty();
+                data.forEach(row => {
+                    const tr = $('<tr></tr>');
+                    tr.append(`<td>${row.sta}</td>`);
+                    tr.append(`<td>${row.staname}</td>`);
+                    tr.append(`<td>${row.temp}</td>`);
+                    tr.append(`<td>${row.rain}</td>`);
+                    tr.append(`<td>${row.press}</td>`);
+                    tr.append(`<td>${row.vis}</td>`);
+                    tr.append(`<td>${row.wspeed}</td>`);
+                    tr.append(`<td>${row.wdirection}</td>`);
+                    tr.append(`<td>${row.rh}</td>`);
+                    tr.append(`<td>${row.dewpoint}</td>`);
+                    tableBody.append(tr);
+                });
+            });
+        }
+
+        // 更新时间轴显示
+        function updateTimeAxis(baseTime) {
+            const times = [
+                new Date(baseTime.getTime() - 2 * 3600000),
+                new Date(baseTime.getTime() - 1 * 3600000),
+                new Date(baseTime),
+                new Date(baseTime.getTime() + 1 * 3600000),
+                new Date(baseTime.getTime() + 2 * 3600000)
+            ];
+            $('#timeMinus2').text(formatDateTime(times[0], 'HH:mm'));
+            $('#timeMinus1').text(formatDateTime(times[1], 'HH:mm'));
+            $('#timeCurrent').text(formatDateTime(times[2], 'HH:mm'));
+            $('#timePlus1').text(formatDateTime(times[3], 'HH:mm'));
+            $('#timePlus2').text(formatDateTime(times[4], 'HH:mm'));
+            // 重置滑块
+            $('#timeSlider').val(2);
+        }
+
+        // 日期格式化工具
+        function formatDateTime(date, format = 'yyyy-MM-ddTHH:mm') {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            const h = String(date.getHours()).padStart(2, '0');
+            const mi = String(date.getMinutes()).padStart(2, '0');
+
+            if (format === 'yyyy-MM-dd HH:00:00') {
+                return `${y}-${m}-${d} ${h}:00:00`;
+            }
+            return `${y}-${m}-${d}T${h}:${mi}`;
+        }
+    </script>
+</body>
+</html>
